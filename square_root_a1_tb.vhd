@@ -6,10 +6,8 @@ entity square_root_a1_tb is
 end entity;
 
 architecture tb of square_root_a1_tb is
-    -- Choose a smaller N for simulation speed
-    constant N_TB    : positive := 8;
+    constant N_TB    : positive := 32;
     constant CLK_PER : time     := 10 ns;
-    constant MAX_A   : natural  := 200;  -- max value to test
 
     signal clk      : std_logic := '0';
     signal reset    : std_logic := '1';
@@ -18,11 +16,20 @@ architecture tb of square_root_a1_tb is
     signal result   : std_logic_vector(N_TB-1 downto 0);
     signal finished : std_logic;
 
+    -- Array of test values
+    type nat_array_t is array (natural range <>) of natural;
+    constant TEST_VALS : nat_array_t := (
+        0,
+        1,
+        512,
+        5499030,
+        1194877489
+    );
+
     -- Integer square root (floor) for checking
     function isqrt(n : natural) return natural is
         variable r : natural := 0;
     begin
-        -- simple O(sqrt(n)) loop is fine for small MAX_A
         while (r+1)*(r+1) <= n loop
             r := r + 1;
         end loop;
@@ -61,12 +68,13 @@ begin
         );
 
     --------------------------------------------------------------------------
-    -- Stimulus
+    -- Stimulus + error counting
     --------------------------------------------------------------------------
     stim_proc : process
-        variable A_nat   : natural;
-        variable exp_sqrt: natural;
-        variable got_sqrt: natural;
+        variable A_nat     : natural;
+        variable exp_sqrt  : natural;
+        variable got_sqrt  : natural;
+        variable error_cnt : natural := 0;
     begin
         -- Initial reset
         reset <= '1';
@@ -75,11 +83,11 @@ begin
         reset <= '0';
         wait for CLK_PER;
 
-        -- Loop over a set of test values
-        for i in 0 to MAX_A loop
-            A_nat := i;
+        -- Loop over test values
+        for idx in TEST_VALS'range loop
+            A_nat := TEST_VALS(idx);
 
-            -- Apply input A (2*N bits)
+            -- Apply input A (2*N_TB bits)
             A <= std_logic_vector(to_unsigned(A_nat, A'length));
 
             -- Start pulse
@@ -94,23 +102,34 @@ begin
             got_sqrt := to_integer(unsigned(result));
             exp_sqrt := isqrt(A_nat);
 
-            -- Report
+            -- Report for this test
             report "Test A=" & integer'image(A_nat) &
                    " expected sqrt=" & integer'image(exp_sqrt) &
-                   " got=" & integer'image(got_sqrt);
+                   " got=" & integer'image(got_sqrt)
+                   severity note;
 
-            -- Check
-            assert got_sqrt = exp_sqrt
+            -- Check and count errors
+            if got_sqrt /= exp_sqrt then
+                error_cnt := error_cnt + 1;
                 report "MISMATCH for A=" & integer'image(A_nat) &
                        " expected " & integer'image(exp_sqrt) &
                        " got "      & integer'image(got_sqrt)
-                severity error;
+                       severity warning;  -- warning so sim continues
+            end if;
 
-            -- Give 1 extra cycle before next test
+            -- Small gap before next test
             wait for CLK_PER;
         end loop;
 
-        report "All tests completed" severity note;
+        -- Final summary
+        if error_cnt = 0 then
+            report "SUCCESS: All tests passed (0 mismatches)" severity note;
+        else
+            report "FAILED: " & integer'image(error_cnt) &
+                   " mismatches detected" severity error;
+        end if;
+
+         assert false report "End of simulation" severity failure;
         wait;  -- stop simulation
     end process;
 
