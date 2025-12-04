@@ -2,10 +2,10 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-entity square_root_a1_tb is
+entity square_root_tb is
 end entity;
 
-architecture tb of square_root_a1_tb is
+architecture tb of square_root_tb is
     constant N_TB    : positive := 32;
     constant CLK_PER : time     := 10 ns;
 
@@ -54,7 +54,7 @@ begin
     --------------------------------------------------------------------------
     -- DUT instantiation
     --------------------------------------------------------------------------
-    uut : entity work.square_root_a1
+    uut : entity work.square_root_a2
         generic map (
             N => N_TB
         )
