@@ -22,7 +22,6 @@ architecture rtl of square_root_a1 is
 
     signal A_reg        : unsigned(2*N-1 downto 0);
     signal result_reg   : unsigned(N-1 downto 0);
-    signal finished_reg : std_logic;
 
     signal x            : unsigned(2*N-1 downto 0);
 
@@ -36,30 +35,29 @@ begin
                 state        <= IDLE;
                 A_reg        <= (others => '0');
                 result_reg   <= (others => '0');
-                finished_reg <= '0';
             else
                 -- capture input when starting
                 if (state = IDLE) and (start = '1') then
                     A_reg <= unsigned(A);
                     x     <= unsigned(A)/2 + to_unsigned(1, x'length);  -- initial guess
-                    finished_reg <= '0';
                     state <= RUN;
                 elsif state = RUN then
                     if(A_reg = 0 or A_reg = 1) then
-                        result_reg <= A_reg(N-1 downto 0);
+                        result_reg <= A_reg(N-1 downto 0); -- sqrt(0)=0, sqrt(1)=1
                         state <= DONE;
                     else
-                        x_next := x - (resize(x*x, x'length) - A_reg) / (2*x);
+                        x_next := x - (resize(x*x, x'length) - A_reg) / (2*x); -- Newton-Raphson update
                         if x_next = x then
-                            result_reg <= resize(x - to_unsigned(1, x'length), result_reg'length);
+                            result_reg <= resize(x - to_unsigned(1, x'length), result_reg'length); -- correct for overshoot
                             state <= DONE;
                         else
                             x <= x_next;
                         end if;
                     end if;
                 elsif state = DONE then
-                    finished_reg <= '1';
-                    state <= IDLE;
+                    if start = '0' then
+                        state <= IDLE;
+                    end if;
                 end if;
             end if;
         end if;
@@ -67,6 +65,6 @@ begin
 
     -- Output assignments
     result   <= std_logic_vector(result_reg);
-    finished <= finished_reg;
+    finished <= '1' when state = DONE else '0';
 
 end architecture rtl;

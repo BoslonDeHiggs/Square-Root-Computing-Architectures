@@ -21,7 +21,6 @@ architecture rtl of square_root_a2 is
     signal state        : state_t;
 
     signal result_reg   : unsigned(N-1 downto 0);
-    signal finished_reg : std_logic;
 
     signal D            : unsigned(2*N-1 downto 0);
     signal Z            : unsigned(N-1 downto 0);
@@ -39,7 +38,6 @@ begin
                 Z            <= (others => '0');
                 R            := (others => '0');
                 result_reg   <= (others => '0');
-                finished_reg <= '0';
             else
                 -- capture input when starting
                 if (state = IDLE) and (start = '1') then
@@ -47,7 +45,6 @@ begin
                     Z <= (others => '0');
                     R := (others => '0');
                     i := N;
-                    finished_reg <= '0';
                     state <= RUN;
                 elsif state = RUN then
                     if (i > 0) then
@@ -68,8 +65,9 @@ begin
                         state <= DONE;
                     end if;
                 elsif state = DONE then
-                    finished_reg <= '1';
-                    state <= IDLE;
+                    if start = '0' then
+                        state <= IDLE;
+                    end if;
                 end if;
             end if;
         end if;
@@ -77,6 +75,6 @@ begin
 
     -- Output assignments
     result   <= std_logic_vector(result_reg);
-    finished <= finished_reg;
+    finished <= '1' when state = DONE else '0';
 
 end architecture rtl;

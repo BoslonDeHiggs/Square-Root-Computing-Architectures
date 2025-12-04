@@ -92,11 +92,12 @@ begin
 
             -- Start pulse
             start <= '1';
-            wait for CLK_PER;
-            start <= '0';
 
             -- Wait for finished signal
             wait until finished = '1';
+            wait for CLK_PER;
+
+            start <= '0';
 
             -- Sample result
             got_sqrt := to_integer(unsigned(result));
