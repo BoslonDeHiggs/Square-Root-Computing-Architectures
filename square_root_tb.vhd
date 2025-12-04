@@ -54,7 +54,7 @@ begin
     --------------------------------------------------------------------------
     -- DUT instantiation
     --------------------------------------------------------------------------
-    uut : entity work.square_root_a2
+    uut : entity work.square_root_a3
         generic map (
             N => N_TB
         )
