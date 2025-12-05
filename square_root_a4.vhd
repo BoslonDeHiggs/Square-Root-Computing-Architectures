@@ -60,13 +60,9 @@ begin
                         nextD := D_s(k);
 
                         if signed(nextR) >= 0 then
-                            nextR := shift_left(nextR, 2)
-                                     + shift_right(nextD, 2*N-2)
-                                     - (shift_left(nextZ, 2) + 1);
+                            nextR := shift_left(nextR, 2) + shift_right(nextD, 2*N-2) - (shift_left(nextZ, 2) + 1);
                         else
-                            nextR := shift_left(nextR, 2)
-                                     + shift_right(nextD, 2*N-2)
-                                     + (shift_left(nextZ, 2) + 3);
+                            nextR := shift_left(nextR, 2) + shift_right(nextD, 2*N-2) + (shift_left(nextZ, 2) + 3);
                         end if;
 
                         if signed(nextR) >= 0 then
