@@ -16,18 +16,46 @@ architecture tb of square_root_pipelined_tb is
     signal result   : std_logic_vector(N_TB-1 downto 0);
     signal finished : std_logic;
 
-    -- Array of test values
-    type nat_array_t is array (natural range <>) of natural;
-    constant TEST_VALS : nat_array_t := (
-        0,
-        1,
-        512,
-        5499030,
-        1194877489
+    --------------------------------------------------------------------------
+    -- Test values (same set as non-pipelined TB)
+    --------------------------------------------------------------------------
+    type slv_array_t is array (natural range <>) of std_logic_vector(2*N_TB-1 downto 0);
+
+    constant TEST_VALS : slv_array_t := (
+        std_logic_vector(to_unsigned(0,           2*N_TB)),
+        std_logic_vector(to_unsigned(1,           2*N_TB)),
+        std_logic_vector(to_unsigned(3,           2*N_TB)),
+        std_logic_vector(to_unsigned(15,          2*N_TB)),
+        std_logic_vector(to_unsigned(127,         2*N_TB)),
+        std_logic_vector(to_unsigned(512,         2*N_TB)),
+        std_logic_vector(to_unsigned(5499030,     2*N_TB)),
+        std_logic_vector(to_unsigned(1194877489,  2*N_TB)),
+        x"00000000FFFFFFFF"  -- 4294967295 = 2^32 - 1
     );
+
     constant NUM_TESTS : natural := TEST_VALS'length;
 
-    -- Integer square root (floor) for checking
+    --------------------------------------------------------------------------
+    -- Gaps (bubbles) after each input, in clock cycles
+    --  e.g. after sending TEST_VALS(1) we wait 1 idle cycle,
+    --       after TEST_VALS(2) we wait 2 idle cycles, etc.
+    --------------------------------------------------------------------------
+    type nat_array_t is array (natural range <>) of natural;
+    constant GAPS : nat_array_t(0 to NUM_TESTS-1) := (
+        0,  -- after A0
+        1,  -- after A1
+        2,  -- after A2
+        3,  -- after A3
+        0,  -- after A4
+        1,  -- after A5
+        2,  -- after A6
+        3,  -- after A7
+        0   -- after A8 (last one, gap only creates bubbles while draining)
+    );
+
+    --------------------------------------------------------------------------
+    -- Integer square root (for values that fit in integer)
+    --------------------------------------------------------------------------
     function isqrt(n : natural) return natural is
         variable r : natural := 0;
     begin
@@ -78,6 +106,9 @@ begin
         variable exp_sqrt  : natural;
         variable got_sqrt  : natural;
         variable error_cnt : natural := 0;
+
+        -- remaining “bubble” cycles before we send the next input
+        variable gap_cnt   : natural := 0;
     begin
         ----------------------------------------------------------------------
         -- Reset phase
@@ -89,43 +120,82 @@ begin
         wait for CLK_PER;
 
         ----------------------------------------------------------------------
-        -- Streaming phase: feed inputs every clock while collecting outputs
+        -- Streaming phase: feed inputs with bubbles between them,
+        -- while collecting outputs whenever finished = '1'.
         ----------------------------------------------------------------------
-        -- We stop when we've *checked* all outputs (idx_out = NUM_TESTS)
         while idx_out < NUM_TESTS loop
             -- Wait for next clock
             wait until rising_edge(clk);
 
-            -- 1) Feed next input if there are any left
+            ------------------------------------------------------------------
+            -- 1) Handle input side (inject bubbles using gap_cnt)
+            ------------------------------------------------------------------
             if idx_in < NUM_TESTS then
-                A_nat := TEST_VALS(idx_in);
-                A     <= std_logic_vector(to_unsigned(A_nat, A'length));
-                start <= '1';  -- valid input this cycle
-                idx_in := idx_in + 1;
+                if gap_cnt = 0 then
+                    -- Send a new input this cycle
+                    A     <= TEST_VALS(idx_in);
+                    start <= '1';
+
+                    -- Set how many idle cycles we want AFTER this input
+                    gap_cnt := GAPS(idx_in);
+
+                    idx_in := idx_in + 1;
+                else
+                    -- Bubble: no new input this cycle
+                    start   <= '0';
+                    gap_cnt := gap_cnt - 1;
+                end if;
             else
-                start <= '0';  -- no more inputs, let pipeline drain
+                -- All inputs already sent: keep start low, let pipeline drain
+                start <= '0';
             end if;
 
-            -- 2) Check if an output is ready this cycle
+            ------------------------------------------------------------------
+            -- 2) Handle output side (check whenever finished = '1')
+            ------------------------------------------------------------------
             if finished = '1' then
                 got_sqrt := to_integer(unsigned(result));
-                A_nat    := TEST_VALS(idx_out);
-                exp_sqrt := isqrt(A_nat);
+
+                -- Expected sqrt:
+                -- For the LAST big test, avoid integer overflow:
+                --   value is 2^32 - 1, so sqrt = 2^16 - 1 = 65535
+                if idx_out = TEST_VALS'high then
+                    exp_sqrt := 2**(N_TB/2) - 1;  -- safe: 65535 for N_TB=32
+                else
+                    A_nat    := to_integer(unsigned(TEST_VALS(idx_out)));
+                    exp_sqrt := isqrt(A_nat);
+                end if;
 
                 -- Report for this test
-                report "Test #" & integer'image(idx_out) &
-                       " A=" & integer'image(A_nat) &
-                       " expected sqrt=" & integer'image(exp_sqrt) &
-                       " got=" & integer'image(got_sqrt)
-                       severity note;
+                if idx_out = TEST_VALS'high then
+                    report "Test #" & integer'image(idx_out) &
+                           " A = 4294967295" &
+                           " expected sqrt = " & integer'image(exp_sqrt) &
+                           " got = " & integer'image(got_sqrt)
+                           severity note;
+                else
+                    report "Test #" & integer'image(idx_out) &
+                           " A = " & integer'image(A_nat) &
+                           " expected sqrt = " & integer'image(exp_sqrt) &
+                           " got = " & integer'image(got_sqrt)
+                           severity note;
+                end if;
 
                 -- Check and count errors
                 if got_sqrt /= exp_sqrt then
                     error_cnt := error_cnt + 1;
-                    report "MISMATCH for A=" & integer'image(A_nat) &
-                           " expected " & integer'image(exp_sqrt) &
-                           " got "      & integer'image(got_sqrt)
-                           severity warning;
+
+                    if idx_out = TEST_VALS'high then
+                        report "MISMATCH for A = 4294967295" &
+                               " expected " & integer'image(exp_sqrt) &
+                               " got "      & integer'image(got_sqrt)
+                               severity warning;
+                    else
+                        report "MISMATCH for A = " & integer'image(A_nat) &
+                               " expected " & integer'image(exp_sqrt) &
+                               " got "      & integer'image(got_sqrt)
+                               severity warning;
+                    end if;
                 end if;
 
                 idx_out := idx_out + 1;
