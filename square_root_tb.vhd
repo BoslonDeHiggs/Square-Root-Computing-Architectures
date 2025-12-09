@@ -17,24 +17,38 @@ architecture tb of square_root_tb is
     signal finished : std_logic;
 
     -- Array of test values
-    type nat_array_t is array (natural range <>) of natural;
+    type nat_array_t is array (natural range <>) of unsigned(2*N_TB-1 downto 0);
     constant TEST_VALS : nat_array_t := (
-        0,
-        1,
-        512,
-        5499030,
-        1194877489
+        to_unsigned(0, 2*N_TB),
+        to_unsigned(1, 2*N_TB),
+        to_unsigned(3, 2*N_TB),
+        to_unsigned(15, 2*N_TB),
+        to_unsigned(127, 2*N_TB),
+        to_unsigned(512, 2*N_TB),
+        to_unsigned(5499030, 2*N_TB),
+        to_unsigned(1194877489, 2*N_TB),
+        x"00000000FFFFFFFF"
     );
 
     -- Integer square root (floor) for checking
-    function isqrt(n : natural) return natural is
-        variable r : natural := 0;
+        -- Integer square root (floor) for checking, using unsigned arithmetic only
+    function isqrt(n : unsigned(2*N_TB-1 downto 0)) return natural is
+        variable r   : unsigned(N_TB-1 downto 0) := (others => '0');
+        variable one : unsigned(N_TB-1 downto 0) := (others => '0');
+        variable rsq : unsigned(2*N_TB-1 downto 0);
     begin
-        while (r+1)*(r+1) <= n loop
-            r := r + 1;
+        one(0) := '1';  -- constant 1 as unsigned
+
+        -- while (r+1)^2 <= n
+        loop
+            rsq := (r + one) * (r + one);  -- 64-bit result
+            exit when rsq > n;
+            r := r + one;
         end loop;
-        return r;
-    end function;
+
+        -- r is small (sqrt), safe to convert to INTEGER/NATURAL
+        return to_integer(r);
+    end;
 
 begin
 
@@ -71,7 +85,7 @@ begin
     -- Stimulus + error counting
     --------------------------------------------------------------------------
     stim_proc : process
-        variable A_nat     : natural;
+        variable A_nat     : unsigned(2*N_TB-1 downto 0);
         variable exp_sqrt  : natural;
         variable got_sqrt  : natural;
         variable error_cnt : natural := 0;
@@ -88,7 +102,7 @@ begin
             A_nat := TEST_VALS(idx);
 
             -- Apply input A (2*N_TB bits)
-            A <= std_logic_vector(to_unsigned(A_nat, A'length));
+            A <= std_logic_vector(A_nat);
 
             -- Start pulse
             start <= '1';
@@ -104,16 +118,14 @@ begin
             exp_sqrt := isqrt(A_nat);
 
             -- Report for this test
-            report "Test A=" & integer'image(A_nat) &
-                   " expected sqrt=" & integer'image(exp_sqrt) &
+            report " expected sqrt=" & integer'image(exp_sqrt) &
                    " got=" & integer'image(got_sqrt)
                    severity note;
 
             -- Check and count errors
             if got_sqrt /= exp_sqrt then
                 error_cnt := error_cnt + 1;
-                report "MISMATCH for A=" & integer'image(A_nat) &
-                       " expected " & integer'image(exp_sqrt) &
+                report " expected " & integer'image(exp_sqrt) &
                        " got "      & integer'image(got_sqrt)
                        severity warning;  -- warning so sim continues
             end if;

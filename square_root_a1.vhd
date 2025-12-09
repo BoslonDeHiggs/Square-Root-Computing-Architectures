@@ -47,7 +47,7 @@ begin
                         state <= DONE;
                     else
                         x_next := x - (resize(x*x, x'length) - A_reg) / (2*x); -- Newton-Raphson update
-                        if x_next = x then
+                        if x_next >= x then
                             result_reg <= resize(x - to_unsigned(1, x'length), result_reg'length); -- correct for overshoot
                             state <= DONE;
                         else

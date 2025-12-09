@@ -150,7 +150,7 @@ architecture rtl of square_root_a5 is
     signal result_reg   : unsigned(N-1 downto 0);
     signal A_even     : std_logic_vector(N-1 downto 0);
     signal A_odd      : std_logic_vector(N-1 downto 0);
-    signal shift      : std_logic;
+    signal shift_d    : std_logic;
 
 begin
 
@@ -173,7 +173,7 @@ begin
         port map (
           clk   => clk,
           reset => reset,
-          shift => shift,
+          shift => shift_d,
           d     => A_even,
           q     => A_even
         );
@@ -186,7 +186,7 @@ begin
         port map (
           clk   => clk,
           reset => reset,
-          shift => shift,
+          shift => shift_d,
           d     => A_odd,
           q     => A_odd
         );
@@ -199,7 +199,7 @@ begin
         port map (
           clk   => clk,
           reset => reset,
-          shift => shift,
+          shift => '1',
           d     => std_logic_vector(result_reg),
           q     => std_logic_vector(result_reg)
         );
