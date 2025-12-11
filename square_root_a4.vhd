@@ -4,11 +4,11 @@ use ieee.numeric_std.all;
 
 entity square_root_a4 is
     generic (
-        N : positive := 32  -- result width in bits; input A is 2*N bits
+        N : positive := 32
     );
     port (
         clk      : in  std_logic;
-        reset    : in  std_logic;  -- active high synchronous reset
+        reset    : in  std_logic;
         start    : in  std_logic;
         A        : in  std_logic_vector(2*N-1 downto 0);
         result   : out std_logic_vector(N-1 downto 0);
@@ -17,13 +17,13 @@ entity square_root_a4 is
 end entity square_root_a4;
 
 architecture rtl of square_root_a4 is
-    type u2N_array is array (0 to N) of unsigned(2*N-1 downto 0);
-    type uN_array  is array (0 to N) of unsigned(N-1 downto 0);
+    type u2N_array is array (0 to N) of unsigned(2*N-1 downto 0); -- Pipeline registers for D and R
+    type uN_array  is array (0 to N) of unsigned(N-1 downto 0);   -- Pipeline registers for Z
 
     signal D_s     : u2N_array;
     signal R_s     : u2N_array;
     signal Z_s     : uN_array;
-    signal valid_s : std_logic_vector(0 to N);
+    signal valid_s : std_logic_vector(0 to N); -- Valid bits for each stage
 begin
     process(clk)
         variable nextR : unsigned(2*N-1 downto 0);
@@ -32,7 +32,7 @@ begin
     begin
         if rising_edge(clk) then
             if reset = '1' then
-                -- clear pipeline
+                -- Clear the pipeline
                 for k in 0 to N loop
                     D_s(k)     <= (others => '0');
                     R_s(k)     <= (others => '0');
@@ -41,7 +41,7 @@ begin
                 end loop;
 
             else
-                -- Stage 0: load input when start=1
+                -- First stage of the pipeline: load input when start=1
                 if start = '1' then
                     D_s(0)     <= unsigned(A);
                     R_s(0)     <= (others => '0');
@@ -54,7 +54,6 @@ begin
                 -- Pipeline stages 0..N-1 -> 1..N
                 for k in 0 to N-1 loop
                     if valid_s(k) = '1' then
-                        -- Start from R_s(k), Z_s(k), D_s(k)
                         nextR := R_s(k);
                         nextZ := Z_s(k);
                         nextD := D_s(k);
@@ -73,7 +72,6 @@ begin
 
                         nextD := shift_left(nextD, 2);
 
-                        -- ******** REGISTER THE RESULTS TO STAGE k+1 ********
                         R_s(k+1)     <= nextR;
                         Z_s(k+1)     <= nextZ;
                         D_s(k+1)     <= nextD;

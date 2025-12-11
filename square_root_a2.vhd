@@ -4,11 +4,11 @@ use ieee.numeric_std.all;
 
 entity square_root_a2 is
     generic (
-        N : positive := 32  -- result width in bits; input A is 2*N bits
+        N : positive := 32
     );
     port (
         clk      : in  std_logic;
-        reset    : in  std_logic;  -- active high synchronous reset
+        reset    : in  std_logic;
         start    : in  std_logic;
         A        : in  std_logic_vector(2*N-1 downto 0);
         result   : out std_logic_vector(N-1 downto 0);
@@ -39,27 +39,27 @@ begin
                 R            := (others => '0');
                 result_reg   <= (others => '0');
             else
-                -- capture input when starting
+                -- Capture input when starting
                 if (state = IDLE) and (start = '1') then
-                    D <= unsigned(A);
+                    D <= unsigned(A); -- Input register
                     Z <= (others => '0');
                     R := (others => '0');
-                    i := N;
+                    i := N; -- Loop counter
                     state <= RUN;
                 elsif state = RUN then
-                    if (i > 0) then
-                        if (signed(R) >= 0) then
+                    if (i > 0) then -- If not done
+                        if (signed(R) >= 0) then -- Update R
                             R := shift_left(R, 2) + shift_right(D, 2*N-2) - (shift_left(Z, 2) + 1);
                         else
                             R := shift_left(R, 2) + shift_right(D, 2*N-2) + (shift_left(Z, 2) + 3);
                         end if;
-                        if (signed(R) >= 0) then
+                        if (signed(R) >= 0) then -- Update Z
                             Z <= shift_left(Z, 1) + 1;
                         else
                             Z <= shift_left(Z, 1);
                         end if;
                         i := i - 1;
-                        D <= shift_left(D, 2);
+                        D <= shift_left(D, 2); -- Shift D for next iteration (next two bits)
                     else
                         result_reg <= Z;
                         state <= DONE;
@@ -73,7 +73,7 @@ begin
         end if;
     end process;
 
-    -- Output assignments
+    -- Outputs
     result   <= std_logic_vector(result_reg);
     finished <= '1' when state = DONE else '0';
 

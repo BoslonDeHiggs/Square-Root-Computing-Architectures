@@ -16,9 +16,7 @@ architecture tb of square_root_pipelined_tb is
     signal result   : std_logic_vector(N_TB-1 downto 0);
     signal finished : std_logic;
 
-    --------------------------------------------------------------------------
-    -- Test values (same set as non-pipelined TB)
-    --------------------------------------------------------------------------
+    -- Test values array using std_logic_vector
     type slv_array_t is array (natural range <>) of std_logic_vector(2*N_TB-1 downto 0);
 
     constant TEST_VALS : slv_array_t := (
@@ -35,11 +33,7 @@ architecture tb of square_root_pipelined_tb is
 
     constant NUM_TESTS : natural := TEST_VALS'length;
 
-    --------------------------------------------------------------------------
-    -- Gaps (bubbles) after each input, in clock cycles
-    --  e.g. after sending TEST_VALS(1) we wait 1 idle cycle,
-    --       after TEST_VALS(2) we wait 2 idle cycles, etc.
-    --------------------------------------------------------------------------
+    -- Gaps after each input, in clock cycles
     type nat_array_t is array (natural range <>) of natural;
     constant GAPS : nat_array_t(0 to NUM_TESTS-1) := (
         0,  -- after A0
@@ -50,12 +44,10 @@ architecture tb of square_root_pipelined_tb is
         1,  -- after A5
         2,  -- after A6
         3,  -- after A7
-        0   -- after A8 (last one, gap only creates bubbles while draining)
+        0   -- after A8
     );
 
-    --------------------------------------------------------------------------
-    -- Integer square root (for values that fit in integer)
-    --------------------------------------------------------------------------
+    -- Integer square root function for checking values
     function isqrt(n : natural) return natural is
         variable r : natural := 0;
     begin
@@ -67,9 +59,7 @@ architecture tb of square_root_pipelined_tb is
 
 begin
 
-    --------------------------------------------------------------------------
     -- Clock generation
-    --------------------------------------------------------------------------
     clk_process : process
     begin
         while true loop
@@ -80,9 +70,7 @@ begin
         end loop;
     end process;
 
-    --------------------------------------------------------------------------
-    -- DUT instantiation
-    --------------------------------------------------------------------------
+    -- Architecture to be tested (fixed to a4, as it is the only pipelined one)
     uut : entity work.square_root_a4
         generic map (
             N => N_TB
@@ -96,9 +84,7 @@ begin
             finished => finished
         );
 
-    --------------------------------------------------------------------------
-    -- Stimulus + pipeline-style checking
-    --------------------------------------------------------------------------
+    -- Stimuli generation and checking
     stim_proc : process
         variable idx_in    : natural := 0;  -- how many inputs sent
         variable idx_out   : natural := 0;  -- how many outputs checked
@@ -107,60 +93,49 @@ begin
         variable got_sqrt  : natural;
         variable error_cnt : natural := 0;
 
-        -- remaining “bubble” cycles before we send the next input
+        -- remaining bubble cycles before we send the next input
         variable gap_cnt   : natural := 0;
     begin
-        ----------------------------------------------------------------------
-        -- Reset phase
-        ----------------------------------------------------------------------
+        -- Initial reset
         reset <= '1';
         start <= '0';
         wait for 3*CLK_PER;
         reset <= '0';
         wait for CLK_PER;
 
-        ----------------------------------------------------------------------
-        -- Streaming phase: feed inputs with bubbles between them,
-        -- while collecting outputs whenever finished = '1'.
-        ----------------------------------------------------------------------
+        -- feed inputs with bubbles between them, while collecting outputs whenever finished = '1'.
         while idx_out < NUM_TESTS loop
             -- Wait for next clock
             wait until rising_edge(clk);
 
-            ------------------------------------------------------------------
-            -- 1) Handle input side (inject bubbles using gap_cnt)
-            ------------------------------------------------------------------
+            -- input handler (inject bubbles using gap_cnt)
             if idx_in < NUM_TESTS then
                 if gap_cnt = 0 then
                     -- Send a new input this cycle
                     A     <= TEST_VALS(idx_in);
                     start <= '1';
 
-                    -- Set how many idle cycles we want AFTER this input
+                    -- Set how many idle cycles we want after this input
                     gap_cnt := GAPS(idx_in);
 
                     idx_in := idx_in + 1;
                 else
-                    -- Bubble: no new input this cycle
+                    -- Bubble, no new input this cycle
                     start   <= '0';
                     gap_cnt := gap_cnt - 1;
                 end if;
             else
-                -- All inputs already sent: keep start low, let pipeline drain
+                -- All inputs already sent
                 start <= '0';
             end if;
 
-            ------------------------------------------------------------------
-            -- 2) Handle output side (check whenever finished = '1')
-            ------------------------------------------------------------------
+            -- output handler, check whenever finished = '1'
             if finished = '1' then
                 got_sqrt := to_integer(unsigned(result));
 
-                -- Expected sqrt:
-                -- For the LAST big test, avoid integer overflow:
-                --   value is 2^32 - 1, so sqrt = 2^16 - 1 = 65535
+                -- Check result
                 if idx_out = TEST_VALS'high then
-                    exp_sqrt := 2**(N_TB/2) - 1;  -- safe: 65535 for N_TB=32
+                    exp_sqrt := 2**(N_TB/2) - 1;
                 else
                     A_nat    := to_integer(unsigned(TEST_VALS(idx_out)));
                     exp_sqrt := isqrt(A_nat);
@@ -202,9 +177,7 @@ begin
             end if;
         end loop;
 
-        ----------------------------------------------------------------------
         -- Final summary
-        ----------------------------------------------------------------------
         if error_cnt = 0 then
             report "SUCCESS: All tests passed (0 mismatches)" severity note;
         else
